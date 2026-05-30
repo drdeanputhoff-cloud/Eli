@@ -19,12 +19,15 @@ class Player:
         self.width = 0.6
         self.height = 1.8
         self.eye_height = 1.62
+        self.crouch_height = 1.2  # Height when crouching
         
         # Movement
         self.velocity_y = 0
         self.is_jumping = False
+        self.is_crouching = False
         self.on_ground = False
         self.move_speed = 0.15
+        self.crouch_speed = 0.08  # Slower when crouching
         self.jump_power = 0.5
         self.gravity = 0.02
         
@@ -41,12 +44,15 @@ class Player:
         self.velocity_y -= self.gravity
         self.y += self.velocity_y
         
+        # Current eye height based on crouching
+        current_eye_height = self.crouch_height if self.is_crouching else self.eye_height
+        
         # Check collision with ground
-        ground_block = world.get_block(int(self.x), int(self.y - self.eye_height/2), int(self.z))
-        if world.is_solid(int(self.x), int(self.y - self.eye_height/2 - 1), int(self.z)):
+        ground_block = world.get_block(int(self.x), int(self.y - current_eye_height/2), int(self.z))
+        if world.is_solid(int(self.x), int(self.y - current_eye_height/2 - 1), int(self.z)):
             self.on_ground = True
             self.velocity_y = 0
-            self.y = int(self.y - self.eye_height/2) + 2
+            self.y = int(self.y - current_eye_height/2) + 2
         else:
             self.on_ground = False
         
@@ -55,53 +61,66 @@ class Player:
             self.y = 256
     
     def move_forward(self, world):
-        """Move forward relative to player rotation"""
-        new_x = self.x + math.sin(self.yaw) * self.move_speed
-        new_z = self.z + math.cos(self.yaw) * self.move_speed
+        """Move forward relative to player rotation (W key)"""
+        speed = self.crouch_speed if self.is_crouching else self.move_speed
+        new_x = self.x + math.sin(self.yaw) * speed
+        new_z = self.z + math.cos(self.yaw) * speed
         
         if not self.is_colliding(new_x, self.y, new_z, world):
             self.x = new_x
             self.z = new_z
     
     def move_backward(self, world):
-        """Move backward relative to player rotation"""
-        new_x = self.x - math.sin(self.yaw) * self.move_speed
-        new_z = self.z - math.cos(self.yaw) * self.move_speed
+        """Move backward relative to player rotation (S key)"""
+        speed = self.crouch_speed if self.is_crouching else self.move_speed
+        new_x = self.x - math.sin(self.yaw) * speed
+        new_z = self.z - math.cos(self.yaw) * speed
         
         if not self.is_colliding(new_x, self.y, new_z, world):
             self.x = new_x
             self.z = new_z
     
     def move_left(self, world):
-        """Move left relative to player rotation"""
-        new_x = self.x + math.sin(self.yaw - math.pi/2) * self.move_speed
-        new_z = self.z + math.cos(self.yaw - math.pi/2) * self.move_speed
+        """Move left relative to player rotation (A key)"""
+        speed = self.crouch_speed if self.is_crouching else self.move_speed
+        new_x = self.x + math.sin(self.yaw - math.pi/2) * speed
+        new_z = self.z + math.cos(self.yaw - math.pi/2) * speed
         
         if not self.is_colliding(new_x, self.y, new_z, world):
             self.x = new_x
             self.z = new_z
     
     def move_right(self, world):
-        """Move right relative to player rotation"""
-        new_x = self.x + math.sin(self.yaw + math.pi/2) * self.move_speed
-        new_z = self.z + math.cos(self.yaw + math.pi/2) * self.move_speed
+        """Move right relative to player rotation (D key)"""
+        speed = self.crouch_speed if self.is_crouching else self.move_speed
+        new_x = self.x + math.sin(self.yaw + math.pi/2) * speed
+        new_z = self.z + math.cos(self.yaw + math.pi/2) * speed
         
         if not self.is_colliding(new_x, self.y, new_z, world):
             self.x = new_x
             self.z = new_z
     
     def jump(self):
-        """Make the player jump"""
-        if self.on_ground:
+        """Make the player jump (SPACE key)"""
+        if self.on_ground and not self.is_crouching:
             self.velocity_y = self.jump_power
             self.is_jumping = True
             self.on_ground = False
     
+    def toggle_crouch(self):
+        """Toggle crouching (SHIFT key)"""
+        self.is_crouching = not self.is_crouching
+    
+    def set_crouch(self, crouching):
+        """Set crouch state"""
+        self.is_crouching = crouching
+    
     def is_colliding(self, x, y, z, world):
         """Check if player collides with blocks at given position"""
         # Simple AABB collision detection
+        current_height = self.crouch_height if self.is_crouching else self.height
         for dx in [-self.width/2, self.width/2]:
-            for dy in [0, self.height]:
+            for dy in [0, current_height]:
                 for dz in [-self.width/2, self.width/2]:
                     block_x = int(x + dx)
                     block_y = int(y + dy)
@@ -111,7 +130,7 @@ class Player:
         return False
     
     def break_block(self, world, inventory):
-        """Break a block in front of the player"""
+        """Break a block in front of the player (Left click)"""
         # Get the block in front of the player
         reach = 5
         for i in range(1, reach):
@@ -128,7 +147,7 @@ class Player:
                 return
     
     def place_block(self, world, inventory):
-        """Place a block in front of the player"""
+        """Place a block in front of the player (Right click)"""
         if not inventory.has_item(self.selected_block):
             return
         
@@ -154,4 +173,5 @@ class Player:
     
     def get_eye_position(self):
         """Get position of player's eyes"""
-        return (self.x, self.y - self.eye_height/2, self.z)
+        current_eye_height = self.crouch_height if self.is_crouching else self.eye_height
+        return (self.x, self.y - current_eye_height/2, self.z)
